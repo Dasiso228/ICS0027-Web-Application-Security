@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="500" height="270" preserveAspectRatio="xMinYMin meet" viewBox="0 0 500 270" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="500" height="270"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-270)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="28" y="221" width="240" height="43" rx="5" ry="5" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 0.8; fill: rgb(92%,95%,96%); fill-rule: evenodd;"/>
+			<text x="39" y="248" style="font-family: DejaVu-Bold; font-size: 10px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,496) scale(1,-1)">Browser</text>
+			<text x="39" y="234" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,468) scale(1,-1)">Forms; visible credentials; opaque session ID</text>
+			<rect x="28" y="112" width="240" height="73" rx="5" ry="5" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 0.8; fill: rgb(92%,95%,96%); fill-rule: evenodd;"/>
+			<text x="39" y="169" style="font-family: DejaVu-Bold; font-size: 10px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,338) scale(1,-1)">Application host</text>
+			<text x="39" y="155" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,310) scale(1,-1)">Nginx (TLS) -&gt; Flask / one worker</text>
+			<text x="39" y="143" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,286) scale(1,-1)">Authentication, validation, owner checks</text>
+			<text x="39" y="131" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,262) scale(1,-1)">Argon2id and AES-GCM encrypt / decrypt</text>
+			<rect x="320" y="123" width="177" height="62" rx="5" ry="5" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 0.8; fill: rgb(92%,95%,96%); fill-rule: evenodd;"/>
+			<text x="331" y="169" style="font-family: DejaVu-Bold; font-size: 10px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,338) scale(1,-1)">Volatile session memory</text>
+			<text x="331" y="155" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,310) scale(1,-1)">Session ID -&gt; user, key, CSRF, timers</text>
+			<text x="331" y="143" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,286) scale(1,-1)">Discard on logout / expiry / restart</text>
+			<rect x="28" y="8" width="469" height="65" rx="5" ry="5" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 0.8; fill: rgb(93%,96%,94%); fill-rule: evenodd;"/>
+			<text x="39" y="57" style="font-family: DejaVu-Bold; font-size: 10px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,114) scale(1,-1)">SQLite database - persistent storage</text>
+			<text x="39" y="43" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,86) scale(1,-1)">users: login name, password hash, independent KDF salt and settings</text>
+			<text x="39" y="31" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,62) scale(1,-1)">vault_entries: IDs, owner, nonce, encrypted JSON + tag, format version</text>
+			<text x="39" y="19" style="font-family: DejaVu; font-size: 8.2px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,38) scale(1,-1)">No master password, vault key or plaintext entry fields</text>
+			<path d="M 2,204 L 498,204 Z" style="stroke: rgb(63%,42%,27%); stroke-linecap: butt; stroke-width: 0.8; stroke-dasharray: 4, 3;"/>
+			<rect x="304" y="195" width="194" height="24" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="310" y="210" style="font-family: DejaVu-Bold; font-size: 8.4px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,420) scale(1,-1)">TB1 - Untrusted requests</text>
+			<text x="310" y="198" style="font-family: DejaVu; font-size: 7.9px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,396) scale(1,-1)">Browser / network to application</text>
+			<path d="M 2,95 L 498,95 Z" style="stroke: rgb(63%,42%,27%); stroke-linecap: butt; stroke-width: 0.8; stroke-dasharray: 4, 3;"/>
+			<rect x="304" y="86" width="194" height="24" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="310" y="101" style="font-family: DejaVu-Bold; font-size: 8.4px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,202) scale(1,-1)">TB2 - Persistent storage</text>
+			<text x="310" y="89" style="font-family: DejaVu; font-size: 7.9px;fill: rgb(14%,21%,29%); stroke:none;" transform="translate(0,178) scale(1,-1)">Application to database</text>
+			<path d="M 148,220 L 148,186 Z" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1;"/>
+			<polygon points="148 186, 145 191, 151 191" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1; fill: rgb(21%,40%,48%); fill-rule: evenodd;"/>
+			<polygon points="148 220, 145 215, 151 215" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1; fill: rgb(21%,40%,48%); fill-rule: evenodd;"/>
+			<path d="M 148,111 L 148,74 Z" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1;"/>
+			<polygon points="148 74, 145 79, 151 79" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1; fill: rgb(21%,40%,48%); fill-rule: evenodd;"/>
+			<polygon points="148 111, 145 106, 151 106" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1; fill: rgb(21%,40%,48%); fill-rule: evenodd;"/>
+			<path d="M 269,146 L 319,146 Z" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1;"/>
+			<polygon points="319 146, 314 143, 314 149" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1; fill: rgb(21%,40%,48%); fill-rule: evenodd;"/>
+			<polygon points="269 146, 274 143, 274 149" style="stroke: rgb(21%,40%,48%); stroke-linecap: butt; stroke-width: 1; fill: rgb(21%,40%,48%); fill-rule: evenodd;"/>
+			<rect x="160" y="194" width="88" height="16" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="165" y="199" style="font-family: DejaVu-Bold; font-size: 8.3px;fill: rgb(21%,40%,48%); stroke:none;" transform="translate(0,398) scale(1,-1)">HTTPS</text>
+			<rect x="160" y="80" width="136" height="16" style="stroke: none; stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="165" y="85" style="font-family: DejaVu; font-size: 8.1px;fill: rgb(21%,40%,48%); stroke:none;" transform="translate(0,170) scale(1,-1)">Ciphertext and metadata</text>
+			<text x="275" y="155" style="font-family: DejaVu; font-size: 7.1px;fill: rgb(21%,40%,48%); stroke:none;" transform="translate(0,310) scale(1,-1)">session</text>
+		</g>
+	</g>
+</svg>

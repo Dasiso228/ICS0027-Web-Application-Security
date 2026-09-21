@@ -1,0 +1,25 @@
+body {
+  margin: 0;
+  background: #f3f5f7;
+  color: #223044;
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+main {
+  max-width: 680px;
+  margin: 60px auto;
+  padding: 32px;
+  background: white;
+  border: 1px solid #d9e0e7;
+  border-radius: 12px;
+}
+
+h1 { margin: 0; font-size: 2rem; }
+h2 { font-size: 1.2rem; }
+.label { color: #356a84; font-size: 0.85rem; font-weight: 600; }
+.notice { padding: 16px; background: #edf4f8; border-left: 3px solid #356a84; }
+
+@media (max-width: 760px) {
+  main { margin: 20px; padding: 24px; }
+}

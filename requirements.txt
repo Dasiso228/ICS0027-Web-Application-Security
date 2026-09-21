@@ -1,0 +1,9 @@
+# Dependencies for the Checkpoint 1 scaffold, pinned after a verified install.
+# The planned cryptography and argon2-cffi libraries are not used yet.
+Flask==3.1.3
+Werkzeug==3.1.8
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+itsdangerous==2.2.0
+click==8.5.0
+blinker==1.9.0
