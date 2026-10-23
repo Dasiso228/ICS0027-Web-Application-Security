@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .env
 instance/
+certs/
 *.db
 *.sqlite
 *.sqlite3
