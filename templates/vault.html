@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>My vault</h1>
+<p><a class="button" href="{{ url_for('vault.new_entry') }}">Add entry</a></p>
+{% if entries %}
+<ul class="entries">
+{% for entry in entries %}
+  <li><a href="{{ url_for('vault.show_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
+      <span class="website">{{ entry.website_url }}</span></li>
+{% endfor %}
+</ul>
+{% else %}
+<p>Your vault is empty.</p>
+{% endif %}
+{% endblock %}

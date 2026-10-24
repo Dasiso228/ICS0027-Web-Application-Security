@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Register' if registering else 'Log in' }} - Password manager{% endblock %}
+{% block content %}
+<h1>{{ 'Register' if registering else 'Log in' }}</h1>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="login_username">Login name</label>
+  <input id="login_username" name="login_username" minlength="3" maxlength="64"
+         pattern="[A-Za-z0-9_.-]{3,64}" autocomplete="username" required>
+  <p class="hint">3-64 letters, digits, dots, underscores or hyphens; case-insensitive.</p>
+  <label for="master_password">Master passphrase</label>
+  <input id="master_password" name="master_password" type="password" minlength="15" maxlength="128"
+         autocomplete="{{ 'new-password' if registering else 'current-password' }}" required>
+  <p class="hint">15-128 characters. Spaces are allowed and preserved.</p>
+  {% if registering %}
+  <label for="confirm_password">Confirm master passphrase</label>
+  <input id="confirm_password" name="confirm_password" type="password"
+         minlength="15" maxlength="128" autocomplete="new-password" required>
+  {% endif %}
+  <button type="submit">{{ 'Create account' if registering else 'Unlock vault' }}</button>
+</form>
+{% endblock %}

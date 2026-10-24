@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ 'Edit entry' if editing else 'Add entry' }}</h1>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="title">Title</label>
+  <input id="title" name="title" maxlength="100" value="{{ values.get('title', '') }}" required>
+  <label for="website_url">Website URL</label>
+  <input id="website_url" name="website_url" type="url" maxlength="2048"
+         value="{{ values.get('website_url', '') }}" placeholder="https://example.com" required>
+  <label for="username">Saved username</label>
+  <input id="username" name="username" maxlength="256" value="{{ values.get('username', '') }}" required>
+  <label for="password">Saved password</label>
+  <input id="password" name="password" type="password" maxlength="1024" autocomplete="off"
+         value="{{ values.get('password', '') }}" required>
+  <label for="notes">Notes (optional)</label>
+  <textarea id="notes" name="notes" maxlength="2000" rows="5">{{ values.get('notes', '') }}</textarea>
+  <button type="submit">Save entry</button>
+</form>
+<p><a href="{{ url_for('vault.list_vault') }}">Back to vault</a></p>
+{% endblock %}

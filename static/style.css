@@ -1,25 +1,28 @@
-body {
-  margin: 0;
-  background: #f3f5f7;
-  color: #223044;
-  font-family: system-ui, sans-serif;
-  line-height: 1.6;
-}
-
-main {
-  max-width: 680px;
-  margin: 60px auto;
-  padding: 32px;
-  background: white;
-  border: 1px solid #d9e0e7;
-  border-radius: 12px;
-}
-
-h1 { margin: 0; font-size: 2rem; }
-h2 { font-size: 1.2rem; }
-.label { color: #356a84; font-size: 0.85rem; font-weight: 600; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #f3f5f7; color: #223044; font-family: system-ui, sans-serif; line-height: 1.6; }
+main { max-width: 760px; margin: 40px auto; padding: 32px; background: white; border: 1px solid #d9e0e7; border-radius: 12px; }
+nav { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-bottom: 24px; }
+nav form { margin-left: auto; }
+h1 { margin: 0 0 20px; font-size: 1.8rem; overflow-wrap: anywhere; }
+a { color: #195d79; }
+.label { color: #356a84; font-size: .85rem; font-weight: 600; }
 .notice { padding: 16px; background: #edf4f8; border-left: 3px solid #356a84; }
-
-@media (max-width: 760px) {
-  main { margin: 20px; padding: 24px; }
-}
+label { display: block; font-weight: 600; margin-top: 16px; }
+input:not([type="checkbox"]):not([type="hidden"]), textarea { width: 100%; padding: 10px; border: 1px solid #8698a5; border-radius: 5px; font: inherit; }
+button, .button { display: inline-block; margin-top: 16px; padding: 9px 15px; background: #245d74; border: 0; border-radius: 5px; color: white; font: inherit; cursor: pointer; text-decoration: none; }
+nav button { margin: 0; padding: 5px 12px; }
+input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #df9a23; outline-offset: 3px; }
+.hint { margin: 4px 0 12px; color: #4f6073; font-size: .9rem; }
+.error { padding: 12px; background: #fff0ef; color: #8b2020; border-left: 3px solid #a33; }
+.entries { list-style: none; padding: 0; }
+.entries li { padding: 15px 0; border-bottom: 1px solid #d9e0e7; overflow-wrap: anywhere; }
+.website { display: block; color: #4f6073; }
+dt { margin-top: 12px; font-weight: 600; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.notes, .secret { white-space: pre-wrap; overflow-wrap: anywhere; }
+.secret { padding: 12px; background: #edf4f8; }
+summary { cursor: pointer; color: #195d79; }
+.delete-form { margin-top: 32px; padding-top: 16px; border-top: 1px solid #d9e0e7; }
+.check { font-weight: 400; }
+.danger { background: #963838; }
+@media (max-width: 780px) { main { margin: 16px; padding: 20px; } }
