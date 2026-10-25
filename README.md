@@ -1,76 +1,69 @@
 # Web-Based Secure Password Manager
 
-ICS0027 - Web Application Security. Checkpoint 1: threat model and architecture.
+ICS0027 — Web Application Security. Checkpoint 2 implements the core web flows from the [Checkpoint 1 design](docs/Checkpoint1_Design.pdf).
 
-## Scope
+## Implemented scope
 
-A small web application where registered users manage their own website credentials. Planned features are registration, login with a master password, listing, adding, viewing, editing and deleting vault entries, and logout. Each entry contains a title, website URL, username, password and optional notes. Credentials will be encrypted on the server before being written to SQLite.
+Users register with a login name and master passphrase, then add, list, view, edit and delete their own website credentials. An entry contains a title, HTTP/HTTPS website URL, saved username, saved password and optional notes. Registration signs the new user in. Logout invalidates the server-side session.
 
-The first version will have no sharing, browser extension, attachments, import, export, password recovery or admin interface. MFA is optional in the assignment and is deferred. This is a learning project; use fictional credentials during development.
+This is a course project: use fictional credentials during development. Sharing, uploads, import/export, browser extensions, password generation, master-password changes, recovery, MFA and an admin interface are outside this checkpoint.
 
-## Current state
+## Run on a clean machine
 
-Implemented: a runnable Flask application, a starting page, a health endpoint, local host restrictions, basic response security headers and this documentation.
+Python 3.11+ is required. From the repository root on Arch Linux:
 
-Planned: database access, authentication, server-side sessions, encryption, vault operations, CSRF tokens, rate limiting and HTTPS deployment. These security controls are described in the design; they are not implemented by this scaffold. No passwords or other user data can be saved yet. No session cookies are created.
+```sh
+sudo pacman -Syu --needed python python-pip git mkcert nss
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip check
+mkdir -p certs
+chmod 700 certs
+mkcert -install
+mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem localhost 127.0.0.1
+chmod 600 certs/localhost-key.pem
+.venv/bin/python -m flask --app app --no-debug run --host 127.0.0.1 --port 5443 --cert certs/localhost.pem --key certs/localhost-key.pem --no-debugger --no-reload
+```
 
-## Design and stack
+Open <https://localhost:5443/>. Restart the browser after CA installation if needed. Do not bypass certificate warnings. See [development instructions](docs/DEVELOPMENT.md) for certificate checks and troubleshooting. The same project commands work in fish without activating the virtual environment. Package installation commands target Arch; other systems need their equivalent Python and mkcert installation.
 
-Read the design document. The architecture diagram shows the trust boundaries.
+No separate database initialization command is needed. `instance/vault.sqlite3` is created on startup and survives a restart. To make a backup, stop the server and copy the private `instance` directory to a protected location; do not commit it. There are no default accounts or credentials.
 
-- Python 3.11+ and Flask with Jinja templates: a small server-rendered application.
+## Security design
 
-- SQLite through Python's `sqlite3`: one local database file and parameterized SQL.
+- Authentication: Argon2id v19, 65,536 KiB, 3 iterations, parallelism 4, 32-byte output and random 16-byte salt. Master passphrases are 15–128 characters, at most 512 UTF-8 bytes; spaces are preserved. Login names use 3–64 ASCII letters, digits, `.`, `_` or `-` and are normalized to lowercase.
+- Encryption: a separate random 16-byte KDF salt derives an AES-256 key from the master passphrase. The login hash is not the encryption key. Each entry's complete JSON payload is encrypted with AES-256-GCM, a fresh 12-byte nonce and AAD `user_id:entry_id:format_version`. Ciphertext includes the 16-byte authentication tag. Record IDs are allocated inside the write transaction before encryption.
+- Persistence: SQLite stores account names, password hashes, salts, KDF parameters, IDs, owner relationships and encrypted payloads. The whole SQLite file is not encrypted. No plaintext entry fields or vault keys are written to it. Parameterized queries constrain read/update/delete by both entry and owner ID.
+- Sessions: random opaque 32-byte tokens identify records in one process's RAM. Only a token is in the `pm_session` cookie: Secure, HttpOnly, SameSite=Strict, Path=/, no Domain and authenticated Max-Age=3600. Passwords are not retained in sessions. Login and registration rotate the session and CSRF token. Logout revokes the token. Server-side expiry is 15 minutes idle or one hour absolute; anonymous form sessions last at most 15 minutes. A background task purges expired state every 60 seconds. Restart invalidates all sessions.
+- Request handling: session-bound CSRF tokens on every POST, 64 KiB request limits, field limits from the design, Jinja autoescaping and a restrictive CSP. Website URLs are displayed as text and never fetched by the server. No JavaScript is needed. HTTP and unexpected Host headers are rejected; responses use no-store, nosniff, no-referrer, frame denial and an HTTPS HSTS header.
+- Resource controls: five failed credential checks per account and IP per five minutes; at most two concurrent KDF operations; at most 1,024 live sessions and 4,096 throttle keys. State is process-local and resets on restart. Audit events use fixed event names, user IDs where known and outcomes; no passwords, keys, cookie tokens or vault fields are logged.
 
-- Planned `argon2-cffi`: master-password verification and separate key derivation.
+The assignment repeats “server-side file encryption and decryption” in both project options. This password-manager implementation follows the design's encrypted SQLite entry payloads. It does not add a file-upload/encryption interface or claim whole-database-file encryption.
 
-- Planned `cryptography` AESGCM: authenticated encryption of complete vault entries.
-
-- Planned Nginx and one Gunicorn worker on the same host: HTTPS and a simple in-memory session store. Restarting the worker will require users to log in again.
-
-The browser submits the master password over HTTPS. The server checks its Argon2id hash and derives a separate encryption key with an independent salt. The key is kept only in the active server-side session. The cookie holds an opaque session identifier, never a key or password. The server can see unlocked credentials.
+The browser receives decrypted credentials when an authenticated user views or edits an entry. The “Show saved password” disclosure hides it visually until opened; it is already in that page's HTML. This is server-side encryption, not a zero-knowledge design. A compromised running server or browser can access unlocked secrets. Python cannot guarantee complete physical memory erasure. Deleted or rolled-back database copies are not prevented by AES-GCM.
 
 ## Routes
 
-| Method | Route | Purpose | Checkpoint 1 status |
-| - | - | - | - |
-| GET | `/` | Starting page | Implemented |
-| GET | `/health` | Simple application status | Implemented |
-| GET, POST | `/register` | Show form; create an account | Planned |
-| GET, POST | `/login` | Show form; authenticate and unlock | Planned |
-| POST | `/logout` | Invalidate the session and discard its key | Planned |
-| GET | `/vault` | List the current user's entries | Planned |
-| GET, POST | `/vault/new` | Show form; encrypt and create an entry | Planned |
-| GET | `/vault/\<int:entry\_id\>` | View one owned entry | Planned |
-| GET, POST | `/vault/\<int:entry\_id\>/edit` | Show form; update an owned entry | Planned |
-| POST | `/vault/\<int:entry\_id\>/delete` | Delete an owned entry | Planned |
+| Methods | Route | Purpose |
+| --- | --- | --- |
+| GET | `/`, `/health` | Home and health |
+| GET, POST | `/register` | Registration |
+| GET, POST | `/login` | Authentication and unlock |
+| POST | `/logout` | Revoke session |
+| GET | `/vault` | List own entry titles and URLs |
+| GET, POST | `/vault/new` | Create encrypted entry |
+| GET | `/vault/<int:entry_id>` | View owned entry |
+| GET, POST | `/vault/<int:entry_id>/edit` | Update owned entry |
+| POST | `/vault/<int:entry_id>/delete` | Delete owned entry with confirmation |
 
+## Validation
 
-All vault routes will require a valid session. The server will check ownership for every operation. Every POST form, including login, registration and logout, will require a CSRF token. GET requests will not change vault data.
-
-## Run locally
-
-The current scaffold needs Python and internet access to install dependencies. It uses HTTP on loopback and has no credential forms. Before adding authentication, implement the HTTPS and session plan in the design.
-
-Linux / macOS, including fish (activation is not required):
-
-```
-cd ICS0027-Web-Application-Security  
-python3 -m venv .venv  
-.venv/bin/python -m pip install -r requirements.txt  
-.venv/bin/python -m flask --app app run --host 127.0.0.1 --port 5000
+```sh
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m tools.benchmark_kdf
 ```
 
-Windows PowerShell:
+The suite contains 24 tests covering cryptography, storage, authentication, CRUD, isolation between users, CSRF, XSS escaping, SQL injection attempts, cookie flags and rotation, logout/restart invalidation, idle and absolute expiry, rate limiting, KDF capacity, request limits, Host/HTTPS checks and secret-free audit events. Tests use temporary databases and do not modify the real vault. Fake clocks test expiry without waiting an hour; production Argon2 parameters are used.
 
-```
-cd ICS0027-Web-Application-Security  
-py -m venv .venv  
-.\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt  
-.\\.venv\\Scripts\\python.exe -m flask --app app run --host 127.0.0.1 --port 5000
-```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000/). The starting page should appear. Open [http://127.0.0.1:5000/health](http://127.0.0.1:5000/health) to see `\{"stage":"checkpoint-1-scaffold","status":"ok"\}`. Stop the server with Ctrl+C. No database initialization is needed at this stage. The development server must remain bound to loopback; do not enable debug mode or expose it publicly.
-
-Validation: installed the pinned dependencies and verified the Flask CLI startup, page, health response, static CSS, response headers and Host restriction with Python 3.11+ on Linux. The Windows command sequence is provided for convenience.
-
+See [CHECKPOINT2.md](CHECKPOINT2.md) for the progress note and local verification record. The development TLS endpoint is Flask on loopback; Nginx/Gunicorn and public trusted-certificate deployment remain planned work.
