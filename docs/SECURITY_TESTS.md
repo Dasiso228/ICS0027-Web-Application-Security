@@ -103,3 +103,80 @@ Screenshots for the report: Bob's 404 page with the address bar visible, and the
 ### Screenshot 2 — Access denied audit log
 
 ![Audit log showing the denied entry access attempt](screenshots/idor-access-denied-log.png)
+
+## 3 Cross-site scripting (OWASP A05:2025 Injection)
+
+### 3.1 Defences
+
+XSS is prevented in layers, so one missing layer does not make the application exploitable:
+
+| Layer | Implementation |
+| --- | --- |
+| Output encoding | Jinja2 autoescaping is enforced for every template (`app.jinja_env.autoescape = True`), not only for `.html` files. User values appear only in text nodes and quoted attributes. There is no `\|safe`, `Markup`, `render_template_string` or `{% autoescape false %}` |
+| Input validation | The website URL must parse as `http`/`https` with a hostname, which rejects `javascript:`, `data:` and `vbscript:` URLs. Field lengths are limited and the login name uses an allow-list. URLs are displayed as text and are never turned into links |
+| No reflection | Error messages are fixed strings. Login and registration forms never echo the submitted values, and error pages do not contain the requested path |
+| Content Security Policy | `default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'` on every response. Inline scripts, inline event handlers and `javascript:` URLs would be blocked by the browser even if markup were injected |
+| No client-side JavaScript | The interface needs no JavaScript, so there are no DOM XSS sinks such as `innerHTML` or `eval` |
+| Supporting controls | `HttpOnly` session cookie (a script cannot read it), `X-Content-Type-Options: nosniff`, explicit `charset=utf-8` |
+
+### 3.2 Payloads
+
+```text
+<script>alert('xss')</script>
+"><script>alert(1)</script>
+'><img src=x onerror=alert(1)>
+<svg/onload=alert(1)>
+</textarea><script>alert(1)</script>
+" autofocus onfocus="alert(1)
+<iframe src="javascript:alert(1)"></iframe>
+<a href="javascript:alert(1)">click me</a>
+<body onload=alert(1)>
+<<SCRIPT>alert(1)//<</SCRIPT>
+{{ config }}{{ 'ssti' * 3 }}
+```
+
+URL payloads: `javascript:alert(document.cookie)`, `JaVaScRiPt:alert(1)`, ` javascript:alert(1)` (leading space), `java<TAB>script:alert(1)`, `javascript://example.test/%0Aalert(document.cookie)`, `data:text/html,<script>alert(1)</script>`, `vbscript:msgbox(1)` and the valid but hostile `https://example.test/"><script>alert(1)</script>`.
+
+### 3.3 Test cases
+
+| ID | Attack vector | Expected result | Result | Mitigation |
+| --- | --- | --- | --- | --- |
+| TC-XSS-01 | Stored XSS: every payload saved in title, username, password and notes; list, view and edit pages parsed as HTML | Only the template's own elements exist; no event-handler, `autofocus` or `style` attributes; no `javascript:` links; the payload text is shown escaped; the template expression is not evaluated | Pass | Autoescaping in text and quoted attributes |
+| TC-XSS-02 | Dangerous URL schemes in the website URL; valid HTTPS URL containing markup | 400 for every dangerous scheme and nothing stored; the hostile HTTPS URL is shown as escaped text, never as a link | Pass | URL allow-list validation; URLs rendered as text |
+| TC-XSS-03 | Reflected XSS through the URL path, the login form and both registration fields | 400/401/404 with fixed messages; the payload does not appear in the response at all | Pass | Fixed error messages; no echo of rejected input |
+| TC-XSS-04 | Check the CSP on normal pages, the login page and 400/404 error pages | Strict CSP (`script-src 'self'`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`), no `unsafe-inline`/`unsafe-eval`, `nosniff`, UTF-8 | Pass | `security_headers` after-request hook |
+| TC-XSS-05 | Source audit of templates, Python modules and static files | No `\|safe`, `Markup`, `render_template_string`, disabled autoescaping, inline `<script>`, `on*=` handlers, `style=` attributes, `javascript:` or `.js` files | Pass | Coding rule enforced by an automated test |
+| TC-XSS-06 | Render a template whose name does not end in `.html` | Output is escaped | Pass | `app.jinja_env.autoescape = True` (Checkpoint 3 change; this test failed before it) |
+| CP2 regression | `test_xss_escaped_on_list_show_and_edit` (tests/test_web.py) | No `<script>`/`<img>` elements or handler attributes | Pass | As above |
+| CP2 regression | `test_cookie_flags_rotation_fixation_and_logout_replay` (tests/test_web.py) | Session cookie is `HttpOnly`, `Secure`, `SameSite=Strict` | Pass | Cookie flags |
+
+The tests were checked by temporarily adding `|safe` to the entry title, disabling autoescaping for the notes field, adding `'unsafe-inline'` to the CSP and allowing the `javascript` scheme in `validation.py`. Each change made at least one of the tests above fail.
+
+### 3.4 Manual demonstration
+
+1.Sign in and add an entry with the title `<script>alert(1)</script>` and the notes `<img src=x onerror=alert(1)>`.
+2.Open the entry and the vault list. Expected: the text is shown literally and no alert appears. *View page source* shows `&lt;script&gt;alert(1)&lt;/script&gt;`.
+3.Edit the entry and set the website URL to `javascript:alert(1)`. Expected: "Use an HTTP or HTTPS website URL with a hostname." and nothing is saved.
+4.In the browser developer tools (*Network* tab) select any page and show the `Content-Security-Policy` response header.
+
+Screenshots documenting the manual verification:
+
+**1. Stored XSS — Entry details**
+
+![Stored XSS payload displayed as text on the entry page](screenshots/xss-entry-details.png)
+
+**2. Stored XSS — Vault list**
+
+![Stored XSS payload displayed as text on the vault list](screenshots/xss-vault-list.png)
+
+**3. HTML escaping — Page source**
+
+![HTML-escaped XSS payload in page source](screenshots/xss-page-source.png)
+
+**4. Dangerous URL rejection**
+
+![Dangerous JavaScript URL rejected by the application](screenshots/xss-dangerous-url-rejected.png)
+
+**5. Content Security Policy**
+
+![Content Security Policy response header](screenshots/xss-csp-header.png)

@@ -33,6 +33,8 @@ def create_app(test_config=None):
     )
     if test_config:
         app.config.update(test_config)
+    # Escape every template, not only files ending in .html 
+    app.jinja_env.autoescape = True
     database.initialize(app.config["DATABASE"])
     app.extensions["sessions"] = SessionStore(app.config["CLOCK"], sweep=app.config["SESSION_SWEEP"])
     app.extensions["login_throttle"] = LoginThrottle(app.config["CLOCK"])
