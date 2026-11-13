@@ -160,6 +160,4 @@ def kdf_slot():
         semaphore.release()
 
 
-def audit(event, outcome, user_id=None):
-    current_app.logger.info("event=%s user_id=%s outcome=%s", event,
-                            user_id if user_id is not None else "-", outcome)
+

@@ -91,7 +91,7 @@ The user identity comes only from the server-side session record (`g.pm_session.
 1.Start the HTTPS server and open <https://localhost:5443/> in a normal browser window. Register `alice-demo` and add an entry. Note its address, for example `https://localhost:5443/vault/1`.
 2.Open a private window (separate cookies). Register `bob-demo`.
 3.In Bob's window open `https://localhost:5443/vault/1`, then `https://localhost:5443/vault/1/edit`.
-4.Expected: "Request unsuccessful — Not found." for both pages, without any of Alice's data. The terminal running the server shows an `entry_access` event with outcome `denied` and Bob's user ID.
+4.Expected: "Request unsuccessful — Not found." for both pages, without any of Alice's data. The terminal running the server and `instance/security.log` show an `entry_access` event with the outcome `denied`, Bob's user ID and the requested `entry_id` (see section 4.2).
 5.In Alice's window reload the entry: it is unchanged.
 
 Screenshots for the report: Bob's 404 page with the address bar visible, and the matching log line:
@@ -180,3 +180,90 @@ Screenshots documenting the manual verification:
 **5. Content Security Policy**
 
 ![Content Security Policy response header](screenshots/xss-csp-header.png)
+
+## 4 Secure error handling and structured logging (OWASP A10:2025, A09:2025)
+
+### 4.1 Error handling
+
+-One handler (`@app.errorhandler(Exception)`) catches every exception. The user receives a fixed message for the status code and a random reference ID, for example "Not found." and "Reference: 4f0c2a9d1b7e3c55". Stack traces, exception messages, SQL, file paths and request data are never shown.
+-Debug mode and the interactive debugger stay disabled (`--no-debug --no-debugger`).
+-Errors fail closed: a failed AES-GCM check returns 400 without plaintext, a busy KDF returns 503, and an invalid form returns 400 without saving anything.
+-An unexpected exception is logged as `server_error` with only its type and `file:line`. The exception message is not logged because it may contain user data.
+-A request with an untrusted `Host` header is rejected first, before the CSRF check and before any template is rendered (Flask cannot build URLs for an untrusted host), with a short plain-text 400.
+
+### 4.2 Structured logging
+
+Each security event is one JSON object per line. It is written to standard error and to `instance/security.log`, next to the database. The instance directory has mode 700 and the log file is created with mode 600. At 1 MiB the file is renamed to `security.log.1` (one previous file is kept), so logging cannot fill the disk. `json.dumps` escapes quotes and line breaks, so request data cannot forge an extra record. Messages that do not come from `audit()`, for example Flask's own error messages, are wrapped into the same format as `app_log` records, and tracebacks are never written, so every line of the file stays one JSON object.
+
+| Field | Meaning |
+| --- | --- |
+| `ts` | UTC timestamp, ISO 8601 with milliseconds |
+| `level` | `INFO` for success, `WARNING` for denied/rejected/failed actions, `ERROR` for server errors, integrity failures and 5xx responses |
+| `event`, `outcome` | Fixed event name and result (`success`, `failure`, `denied`, `rejected`, `throttled`) |
+| `user_id` | Authenticated user or affected account; `null` if unknown |
+| `session_ref` | First 12 hex digits of SHA-256(session token): links one session's requests without revealing the token |
+| `request_id` | Random ID of the request; shown to the user as "Reference" on error pages |
+| `ip`, `method`, `path` | Source address, HTTP method and path (at most 200 characters, no query string) |
+| `entry_id`, `status`, `reason`, `error_type`, `location` | Optional details; `reason` is a fixed code |
+
+| Event | Outcomes and details |
+| --- | --- |
+| `registration` | `success`; `failure` with reason `invalid_input` or `name_unavailable` |
+| `login` | `success`; `failure` with reason `invalid_input` or `invalid_credentials`; `throttled` |
+| `logout` | `success` |
+| `csrf` | `denied` |
+| `entry_create`, `entry_update`, `entry_delete` | `success` with `entry_id` |
+| `entry_validation` | `rejected` |
+| `entry_access` | `denied` with `entry_id` |
+| `vault_decryption` | `failure` (`ERROR`) |
+| `http_error` | `rejected` (4xx) or `failure` (5xx) with `status`; reason `untrusted_host` for Host rejection |
+| `server_error` | `failure` (`ERROR`) with `error_type` and `location` |
+| `app_log` | Any other log message (for example from Flask), wrapped as JSON with `message` and, for exceptions, `error_type`; no traceback |
+
+Never logged: master passphrases (including wrong ones), login names typed into the forms, session cookies, CSRF tokens, vault keys, entry contents, exception messages and query strings. Example of a denied access attempt:
+
+```json
+{"ts":"2026-11-12T10:15:30.123Z","level":"WARNING","event":"entry_access","outcome":"denied","user_id":2,"request_id":"4f0c2a9d1b7e3c55","session_ref":"8a1f0c6d2e4b","ip":"127.0.0.1","method":"GET","path":"/vault/1","entry_id":1}
+```
+
+### 4.3 Test cases
+
+| ID | Attack vector or check | Expected result | Result | Mitigation |
+| --- | --- | --- | --- | --- |
+| TC-ERR-01 | Unexpected exception whose message contains an internal secret and path | 500 "An internal error occurred." with a reference; no message, type, traceback or file name in the page; the log has `server_error` with the same `request_id`, type and location but not the message | Pass | Global error handler; fixed messages; type-only logging |
+| TC-ERR-02 | Database error whose message contains SQL | Generic 500; no SQL, table name or driver name in the page | Pass | As above |
+| TC-ERR-03 | Error probing: invalid CSRF (400), unknown path with a query string (404), wrong method (405), oversized body (413) | Fixed message per status and a reference; path and query not reflected | Pass | Fixed message table; request limits |
+| TC-ERR-04 | Debug mode, plain HTTP and a forged `Host` header (GET and POST) | `app.debug` is false; plain HTTP → generic 400; foreign host → `Invalid Host header.` even for a POST without a CSRF token | Pass | HTTPS check; `TRUSTED_HOSTS` checked first in `validate_request` |
+| TC-LOG-01 | Normal use mixed with attacks: register, create, edit, invalid URL, IDOR, missing CSRF token, delete, logout, wrong password, SQL payload as login name | Every record is one JSON object with all core fields; the expected events, outcomes, user IDs, entry IDs and reason codes are present | Pass | `audit()` in `audit_log.py` |
+| TC-LOG-02 | Same scenario; search the log for every secret used | No passphrase, cookie, CSRF token, vault key (hex/Base64), entry field or rejected URL in the log | Pass | Only IDs and fixed codes are logged |
+| TC-LOG-03 | Log injection: CR/LF and a fake JSON `login` record in the request path (normal request and forged-Host POST) and in a raw log message with an exception | Every line of the log file is one JSON object; no forged `login` record; the payload is kept as escaped data in `path`; no traceback or exception message | Pass | JSON encoding; `JsonFormatter` wraps all other records; early Host check |
+| TC-LOG-04 | Log file location, format, permissions and size limit | JSON lines in `security.log` next to the database; mode 600 on POSIX; rotation to `.1` at the limit | Pass | `JsonLinesFileHandler` |
+| CP2 regression | `test_logs_exclude_passwords_cookie_and_vault_data` (tests/test_web.py) | No secrets in the log | Pass | As above |
+| CP2 regression | `test_tampered_database_is_rejected_without_plaintext` (tests/test_web.py) | Tampered ciphertext → generic 400 and no plaintext | Pass | AES-GCM; fail closed |
+
+The tests were checked by temporarily logging the exception message, showing `repr(error)` to the user, writing plain-text instead of JSON records, logging the attempted password, removing the `entry_access` audit call and removing the early Host check. Each change made at least one test fail.
+
+A code review found one real problem before the final version: a POST request with a forged `Host` header failed the CSRF check first, the error page then could not be rendered without a URL adapter, and Flask wrote a plain-text traceback containing the decoded request path into the log, which allowed fake log lines. The Host check now runs first in `validate_request`, every log record is forced into JSON without tracebacks, and TC-ERR-04 and TC-LOG-03 cover the case.
+
+### 4.4 Manual demonstration
+
+1.Open <https://localhost:5443/does-not-exist>. Expected: "Not found." and a reference such as `Reference: 4f0c2a9d1b7e3c55`.
+2.In a second terminal, find the matching record: `grep 4f0c2a9d1b7e3c55 instance/security.log`.
+3.Run `tail -f instance/security.log`, log out and try a wrong master passphrase. Expected: a `login` / `failure` / `invalid_credentials` record that contains neither the login name nor the passphrase.
+4.Repeat the IDOR attempt from section 2.3 and show the `entry_access` / `denied` record.
+
+**1. HTTP 404 Error Handling**
+
+![HTTP 404 error page](screenshots/04_error_404.png)
+
+![Matching reference ID in security log](screenshots/04_error_reference_log.png)
+
+**2. Failed Login Logging**
+
+![Failed login security log](screenshots/04_login_failure_log.png)
+
+**3. Unauthorized Vault Entry Access (IDOR)**
+
+![IDOR access denied - HTTP 404](screenshots/04_idor_denied.png)
+
+![IDOR access denied - security log](screenshots/04_idor_denied_log.png)

@@ -1,8 +1,9 @@
 """Every database lookup is constrained by the authenticated owner."""
 from flask import Blueprint, abort, g, redirect, render_template, request, url_for
 import database
+from audit_log import audit
 from crypto_utils import decrypt_entry
-from security import audit, form_value, get_db, require_login
+from security import form_value, get_db, require_login
 from validation import FIELDS, ValidationError, entry_fields
 
 bp = Blueprint("vault", __name__)
@@ -11,7 +12,7 @@ bp = Blueprint("vault", __name__)
 def owned_entry(entry_id):
     row = database.find_entry(get_db(), g.pm_session.user_id, entry_id)
     if row is None:
-        audit("entry_access", "denied", g.pm_session.user_id)
+        audit("entry_access", "denied", g.pm_session.user_id, entry_id=entry_id)
         abort(404)
     return row
 
@@ -38,8 +39,10 @@ def new_entry():
     try:
         values = submitted_entry()
     except ValidationError as error:
+        audit("entry_validation", "rejected", g.pm_session.user_id)
         return render_template("entry_form.html", editing=False, values={}, error=str(error)), 400
     entry_id = database.create_entry(get_db(), g.pm_session.user_id, g.pm_session.key, values)
+    audit("entry_create", "success", g.pm_session.user_id, entry_id=entry_id)
     return redirect(url_for("vault.show_entry", entry_id=entry_id), code=303)
 
 
@@ -60,9 +63,11 @@ def edit_entry(entry_id):
     try:
         values = submitted_entry()
     except ValidationError as error:
+        audit("entry_validation", "rejected", g.pm_session.user_id, entry_id=entry_id)
         return render_template("entry_form.html", editing=True, values={}, error=str(error)), 400
     if not database.update_entry(get_db(), g.pm_session.user_id, entry_id, g.pm_session.key, values):
         abort(404)
+    audit("entry_update", "success", g.pm_session.user_id, entry_id=entry_id)
     return redirect(url_for("vault.show_entry", entry_id=entry_id), code=303)
 
 
@@ -74,4 +79,5 @@ def delete_entry(entry_id):
         abort(400)
     if not database.delete_entry(get_db(), g.pm_session.user_id, entry_id):
         abort(404)
+    audit("entry_delete", "success", g.pm_session.user_id, entry_id=entry_id)
     return redirect(url_for("vault.list_vault"), code=303)

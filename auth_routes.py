@@ -3,8 +3,9 @@ import secrets
 import sqlite3
 from flask import Blueprint, abort, current_app, g, redirect, render_template, request, url_for
 import database
+from audit_log import audit
 from crypto_utils import VaultError, derive_key, hash_password, verify_password
-from security import audit, form_session, form_value, get_db, issue_session, kdf_slot, require_login, store
+from security import form_session, form_value, get_db, issue_session, kdf_slot, require_login, store
 from validation import ValidationError, login_name, master_password
 
 bp = Blueprint("auth", __name__)
@@ -29,8 +30,10 @@ def register():
             key = derive_key(password, salt)
         user_id = database.create_user(get_db(), name, encoded, salt)
     except ValidationError as error:
+        audit("registration", "failure", reason="invalid_input")
         return render_template("auth.html", registering=True, error=str(error)), 400
     except sqlite3.IntegrityError:
+        audit("registration", "failure", reason="name_unavailable")
         return render_template("auth.html", registering=True,
                                error="That login name is unavailable."), 400
     issue_session(user_id, key)
@@ -49,11 +52,12 @@ def login():
         name = login_name(form_value("login_username"))
         password = master_password(form_value("master_password"))
     except ValidationError:
+        audit("login", "failure", reason="invalid_input")
         return render_template("auth.html", registering=False, error=LOGIN_ERROR), 401
     ip = request.remote_addr or "unknown"
     throttle = current_app.extensions["login_throttle"]
     if not throttle.allowed(name, ip):
-        audit("login", "throttled")
+        audit("login", "throttled", reason="too_many_failures")
         abort(429)
     user = database.find_user(get_db(), name)
     encoded = user["password_hash"] if user else current_app.extensions["dummy_hash"]
@@ -68,7 +72,7 @@ def login():
                 valid = False
     if not valid or user is None:
         throttle.failed(name, ip)
-        audit("login", "failure", user["id"] if user else None)
+        audit("login", "failure", user["id"] if user else None, reason="invalid_credentials")
         return render_template("auth.html", registering=False, error=LOGIN_ERROR), 401
     issue_session(user["id"], key)
     audit("login", "success", user["id"])

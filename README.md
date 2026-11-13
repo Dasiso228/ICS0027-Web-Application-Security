@@ -27,7 +27,7 @@ chmod 600 certs/localhost-key.pem
 
 Open <https://localhost:5443/>. Restart the browser after CA installation if needed. Do not bypass certificate warnings. See [development instructions](docs/DEVELOPMENT.md) for certificate checks and troubleshooting. The same project commands work in fish without activating the virtual environment. Package installation commands target Arch; other systems need their equivalent Python and mkcert installation.
 
-No separate database initialization command is needed. `instance/vault.sqlite3` is created on startup and survives a restart. To make a backup, stop the server and copy the private `instance` directory to a protected location; do not commit it. There are no default accounts or credentials.
+No separate database initialization command is needed. `instance/vault.sqlite3` is created on startup and survives a restart; the security log `instance/security.log` is created next to it. To make a backup, stop the server and copy the private `instance` directory to a protected location; do not commit it. There are no default accounts or credentials.
 
 ## Security design
 
@@ -36,7 +36,8 @@ No separate database initialization command is needed. `instance/vault.sqlite3` 
 - Persistence: SQLite stores account names, password hashes, salts, KDF parameters, IDs, owner relationships and encrypted payloads. The whole SQLite file is not encrypted. No plaintext entry fields or vault keys are written to it. Parameterized queries constrain read/update/delete by both entry and owner ID.
 - Sessions: random opaque 32-byte tokens identify records in one process's RAM. Only a token is in the `pm_session` cookie: Secure, HttpOnly, SameSite=Strict, Path=/, no Domain and authenticated Max-Age=3600. Passwords are not retained in sessions. Login and registration rotate the session and CSRF token. Logout revokes the token. Server-side expiry is 15 minutes idle or one hour absolute; anonymous form sessions last at most 15 minutes. A background task purges expired state every 60 seconds. Restart invalidates all sessions.
 - Request handling: session-bound CSRF tokens on every POST, 64 KiB request limits, field limits from the design, Jinja autoescaping and a restrictive CSP. Website URLs are displayed as text and never fetched by the server. No JavaScript is needed. HTTP and unexpected Host headers are rejected; responses use no-store, nosniff, no-referrer, frame denial and an HTTPS HSTS header.
-- Resource controls: five failed credential checks per account and IP per five minutes; at most two concurrent KDF operations; at most 1,024 live sessions and 4,096 throttle keys. State is process-local and resets on restart. Audit events use fixed event names, user IDs where known and outcomes; no passwords, keys, cookie tokens or vault fields are logged.
+- Resource controls: five failed credential checks per account and IP per five minutes; at most two concurrent KDF operations; at most 1,024 live sessions and 4,096 throttle keys. State is process-local and resets on restart.
+Errors and logging: one error handler returns fixed messages with a random reference ID; stack traces, exception messages, SQL and request data are never shown. Security events are JSON lines (time, level, event, outcome, user ID, session fingerprint, request ID, source IP, method and path) written to standard error and `instance/security.log` (mode 600, rotated at 1 MiB). Passwords, keys, cookie and CSRF tokens and vault fields are never logged.
 
 The assignment repeats “server-side file encryption and decryption” in both project options. This password-manager implementation follows the design's encrypted SQLite entry payloads. It does not add a file-upload/encryption interface or claim whole-database-file encryption.
 

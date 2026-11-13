@@ -1,4 +1,4 @@
-"""One-process HTTPS development application for ICS0027 Checkpoint 2."""
+"""One-process HTTPS development application for ICS0027 Checkpoint 3."""
 from functools import lru_cache
 import logging
 from pathlib import Path
@@ -10,8 +10,9 @@ from werkzeug.exceptions import HTTPException, SecurityError
 import auth_routes
 import database
 import vault_routes
+from audit_log import audit, configure_logging, error_location
 from crypto_utils import VaultError, hash_password
-from security import COOKIE, LoginThrottle, SessionStore, audit
+from security import COOKIE, LoginThrottle, SessionStore
 from validation import ValidationError
 
 
@@ -33,18 +34,24 @@ def create_app(test_config=None):
     )
     if test_config:
         app.config.update(test_config)
-    # Escape every template, not only files ending in .html 
+    # The security log lives next to the database, in the private instance directory.
+    app.config.setdefault("LOG_FILE", str(Path(app.config["DATABASE"]).with_name("security.log")))
+    # Escape every template, not only files ending in .html (defence in depth against XSS).
     app.jinja_env.autoescape = True
     database.initialize(app.config["DATABASE"])
+    configure_logging(app)
     app.extensions["sessions"] = SessionStore(app.config["CLOCK"], sweep=app.config["SESSION_SWEEP"])
     app.extensions["login_throttle"] = LoginThrottle(app.config["CLOCK"])
     app.extensions["kdf_slots"] = threading.BoundedSemaphore(2)
     app.extensions["dummy_hash"] = dummy_hash()
-    app.logger.setLevel(logging.INFO)
 
     @app.before_request
     def validate_request():
+        g.request_id = secrets.token_hex(8)
         g.pm_session = None
+        if isinstance(request.routing_exception, SecurityError):
+            # An untrusted Host leaves no URL adapter, so stop before CSRF checks or templates run.
+            raise request.routing_exception
         if not request.is_secure:
             abort(400)
         token = request.cookies.get(COOKIE, "")
@@ -93,8 +100,11 @@ def create_app(test_config=None):
 
     @app.errorhandler(Exception)
     def handle_error(error):
+        record = getattr(g, "pm_session", None)
+        user_id = record.user_id if record else None
         if isinstance(error, SecurityError):
             # Host rejection happens before Flask can construct a URL adapter.
+            audit("http_error", "rejected", user_id, status=400, reason="untrusted_host")
             return "Invalid Host header.", 400, {"Content-Type": "text/plain; charset=utf-8"}
         if isinstance(error, HTTPException):
             code = error.code
@@ -107,10 +117,16 @@ def create_app(test_config=None):
                     429: "Too many login attempts. Try again in five minutes.",
                     503: "The application is busy. Please try again shortly."}
         if isinstance(error, VaultError):
-            audit("vault_decryption", "failure", g.pm_session.user_id if g.pm_session else None)
+            audit("vault_decryption", "failure", user_id, level=logging.ERROR)
         if code == 500:
-            app.logger.error("event=server_error type=%s", type(error).__name__)
-        return render_template("error.html", message=messages.get(code, "An internal error occurred.")), code
+            # Type and location go to the server log only; the message may contain data.
+            audit("server_error", "failure", user_id, level=logging.ERROR, status=code,
+                  error_type=type(error).__name__, location=error_location(error))
+        else:
+            audit("http_error", "rejected" if code < 500 else "failure", user_id,
+                  level=logging.WARNING if code < 500 else logging.ERROR, status=code)
+        return render_template("error.html", message=messages.get(code, "An internal error occurred."),
+                               request_id=g.get("request_id")), code
 
     @app.get("/")
     def index():

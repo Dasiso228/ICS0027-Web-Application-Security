@@ -2,5 +2,6 @@
 {% block content %}
 <h1>Request unsuccessful</h1>
 <p class="error" role="alert">{{ message }}</p>
+{% if request_id %}<p class="hint">Reference: {{ request_id }}. Quote it if you report this problem.</p>{% endif %}
 <p><a href="{{ url_for('index') }}">Return to home</a></p>
 {% endblock %}

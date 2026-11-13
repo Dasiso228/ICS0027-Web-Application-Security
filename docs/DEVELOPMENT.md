@@ -43,6 +43,14 @@ Checkpoint 2 uses one Flask development-server process with TLS directly. The Ng
 
 The database is created automatically as `instance/vault.sqlite3`. The directory is mode 700 and the file is mode 600. Sessions and keys live in process memory, so stopping the server logs everyone out while the encrypted database remains.
 
+Security events are printed to the terminal as JSON lines and appended to `instance/security.log` (mode 600). Follow the file in a second terminal:
+
+```sh
+tail -f instance/security.log
+```
+
+Each line contains `ts`, `level`, `event`, `outcome`, `user_id`, `session_ref`, `request_id`, `ip`, `method` and `path`, plus optional details such as `entry_id` or `status`. Messages from Flask itself are wrapped as `app_log` records, and tracebacks are never written, so every line is one JSON object. Error pages show the `request_id` as "Reference", so a reported problem can be found with `grep <reference> instance/security.log`. At 1 MiB the file is renamed to `security.log.1`. The log never contains passwords, keys, tokens or vault contents, but it does contain user IDs and IP addresses, so keep it out of Git (`instance/` and `*.log` are ignored).
+
 Measure the planned KDF settings on the actual development machine:
 
 ```sh
